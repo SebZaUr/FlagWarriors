@@ -1,6 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy JAR app to Azure Web App - flagwarriorback
 
 on:
@@ -10,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-backend:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,42 +19,93 @@ jobs:
           java-version: '17'
           distribution: 'microsoft'
 
-      - name: Build with Maven
+      - name: Build Spring Boot backend with Maven
         run: mvn clean install
 
-      - name: Upload artifact for deployment job
+      - name: Upload artifact for backend deployment
         uses: actions/upload-artifact@v4
         with:
-          name: java-app
+          name: java-backend
           path: '${{ github.workspace }}/target/*.jar'
 
-  deploy:
+  build-websocket:
     runs-on: ubuntu-latest
-    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies for WebSocket service
+        run: |
+          cd websocket-folder  # Cambia esto al nombre real de la carpeta de tu WebSocket en JS
+          npm install
+
+      - name: Upload artifact for WebSocket deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: websocket-app
+          path: '${{ github.workspace }}/websocket-folder'  # Cambia al directorio de WebSocket real
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: build-backend
     environment:
       name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
-      id-token: write #This is required for requesting the JWT
+      id-token: write
   
     steps:
-      - name: Download artifact from build job
+      - name: Download backend artifact
         uses: actions/download-artifact@v4
         with:
-          name: java-app
-      
+          name: java-backend
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_988BD6A4609B4E1AA147F559E8B6F259 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_5288036BC7B0443CB548EFBC7EAF5249 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_7AD17F7BA80B4ACAA97845B6952F66BC }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure Web App
-        id: deploy-to-webapp
+      - name: Deploy backend to Azure Web App
+        id: deploy-backend
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'flagwarriorback'
           slot-name: 'Production'
           package: '*.jar'
+
+  deploy-websocket:
+    runs-on: ubuntu-latest
+    needs: build-websocket
+    environment:
+      name: 'Production'
+    permissions:
+      id-token: write
+  
+    steps:
+      - name: Download WebSocket artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: websocket-app
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy WebSocket to Azure Web App
+        id: deploy-websocket
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'nombre-del-websocket'
+          slot-name: 'Production'
+          package: './websocket-folder'  # Cambia esto al directorio real del WebSocket en JS
+
           
